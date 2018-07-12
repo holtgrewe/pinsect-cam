@@ -2,7 +2,12 @@
 
 from . import model
 import tkinter as tk
+from tkinter import messagebox
 from PIL import ImageTk, Image
+
+
+def show_error(msg):
+    messagebox.showerror('ERROR', msg)
 
 
 class _ComponentBuilder:
