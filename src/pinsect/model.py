@@ -79,6 +79,8 @@ class AppState:
         self.state = IDLE
         self.interval = args.interval or config.interval
         self.work_dir = args.work_dir or config.work_dir
+        self.on_image = lambda path: None
+        self.on_uiupdate = lambda: None
 
 
 class AppModel:
@@ -96,9 +98,10 @@ class AppModel:
         print('Starting preview to {}...'.format(self.preview_path()),
               file=sys.stderr)
         self.state.state = PREVIEW
-        thread = PreviewThread(self.state)
+        thread = PreviewThread(self.state, self)
         res = thread.get_jpeg_path()
         thread.start()
+        self.on_uiupdate()
         return res
 
     def preview_path(self):
@@ -110,19 +113,22 @@ class AppModel:
             return
         print('Stopping preview.', file=sys.stderr)
         self.state.state = IDLE
+        self.on_uiupdate()
 
     def start_recording(self):
         print('Starting recording to {}...'.format(self.state.work_dir),
               file=sys.stderr)
         self.state.state = RECORDING
-        thread = RecordThread(self.state)
+        thread = RecordThread(self.state, self)
         res = thread.get_jpeg_path()
         thread.start()
+        self.on_uiupdate()
         return res
 
     def stop_recording(self):
         print('Stopping recording.', file=sys.stderr)
         self.state.state = IDLE
+        self.on_uiupdate()
 
     def get_interval(self):
         return self.state.interval
@@ -137,8 +143,9 @@ class AppModel:
 class RaspiStillThread:
     """Base class for thread writing images to files via ``raspistill``."""
 
-    def __init__(self, app_state):
+    def __init__(self, app_state, model):
         self.app_state = app_state
+        self.model = model
         self.running = False
         self.stop = False
         self.lock = threading.RLock()
@@ -167,16 +174,19 @@ class RaspiStillThread:
         QUALITY = '90'
         path = self.get_jpeg_path()
         try:
+            path = self.get_jpeg_path()
             subprocess.run([
                 'raspistill',
                 '-q', QUALITY,
-                '-o', self.get_jpeg_path(),
+                '-o', path,
                 '-dt',
             ])
+            self.state.on_image(path)
         except Exception as e:
             print('ERROR: {}'.format(e), file=sys.stderr)
             ui.show_error('ERROR: {}'.format(e))
-            self.app_state.stop_recording()
+            self.model.stop_preview()
+            self.model.stop_recording()
             raise
 
     def start(self):

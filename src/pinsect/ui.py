@@ -101,8 +101,11 @@ class AppFrame(tk.Frame):
         #: Render and resize the image.
         self.image_loaded()
         self.master.bind('<Configure>', self.on_resize)
+        self.model.on_image = self.image_loaded
+        self.model.on_uiupdate = self.on_resize
 
     def image_loaded(self):
+        self.state_updated()
         orig_width, orig_height = self.components['original'].size
         scale_width = (
             self.components['image_display'].winfo_width() / orig_width)
@@ -120,7 +123,8 @@ class AppFrame(tk.Frame):
             (0, 0), anchor=tk.NW, image=self.components['photo'],
             tags='all')
 
-    def on_resize(self, _event):
+    def on_resize(self, _event=None):
+        self.state_updated()
         self.image_loaded()
 
     def state_updated(self):
@@ -132,6 +136,7 @@ class AppFrame(tk.Frame):
                     'interval_dec_button'):
                 self.components[x]['state'] = tk.NORMAL
             self.components['preview_button']['text'] = 'Preview'
+            self.components['record_button']['text'] = 'Record'
         elif self.model.state.state == model.PREVIEW:
             for x in (
                     'record_button', 'interval_entry',
@@ -140,6 +145,7 @@ class AppFrame(tk.Frame):
                 self.components[x]['state'] = tk.DISABLED
             self.components['preview_button']['state'] = tk.NORMAL
             self.components['preview_button']['text'] = '[Previewing]'
+            self.components['record_button']['text'] = 'Record'
         elif self.model.state.state == model.RECORDING:
             for x in (
                     'preview_button', 'interval_entry',
@@ -147,6 +153,7 @@ class AppFrame(tk.Frame):
                     'interval_dec_button'):
                 self.components[x]['state'] = tk.DISABLED
             self.components['record_button']['state'] = tk.NORMAL
+            self.components['preview_button']['text'] = 'Preview'
             self.components['record_button']['text'] = '[Recording]'
 
     def preview_clicked(self):
@@ -164,6 +171,10 @@ class AppFrame(tk.Frame):
         else:
             self.model.start_recording()
         self.state_updated()
+
+    def image_changed(self, path):
+        self.components['original'] = Image.open(path)
+        self.image_loaded()
 
     def interval_changed(self, *args):
         """Update the record interval."""
