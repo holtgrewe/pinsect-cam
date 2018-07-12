@@ -30,7 +30,7 @@ STATES = (
 #: Default configuration.
 DEFAULT_CONFIG_ = (
     # Interval between two recordings.
-    ('interval', 5),
+    ('interval', 60),
     # Work directory.
     ('work_dir', str(pathlib.Path.home() / 'pinsect-cam')),
 )
@@ -101,7 +101,7 @@ class AppModel:
         thread = PreviewThread(self.state, self)
         res = thread.get_jpeg_path()
         thread.start()
-        self.on_uiupdate()
+        self.state.on_uiupdate()
         return res
 
     def preview_path(self):
@@ -113,7 +113,7 @@ class AppModel:
             return
         print('Stopping preview.', file=sys.stderr)
         self.state.state = IDLE
-        self.on_uiupdate()
+        self.state.on_uiupdate()
 
     def start_recording(self):
         print('Starting recording to {}...'.format(self.state.work_dir),
@@ -122,13 +122,13 @@ class AppModel:
         thread = RecordThread(self.state, self)
         res = thread.get_jpeg_path()
         thread.start()
-        self.on_uiupdate()
+        self.state.on_uiupdate()
         return res
 
     def stop_recording(self):
         print('Stopping recording.', file=sys.stderr)
         self.state.state = IDLE
-        self.on_uiupdate()
+        self.state.on_uiupdate()
 
     def get_interval(self):
         return self.state.interval
@@ -175,18 +175,26 @@ class RaspiStillThread:
         path = self.get_jpeg_path()
         try:
             path = self.get_jpeg_path()
+            pathlib.Path(path).parent.mkdir(
+                    exist_ok=True, parents=True)
+            print('Taking image to {}...'.format(path), file=sys.stderr)
             subprocess.run([
                 'raspistill',
                 '-q', QUALITY,
                 '-o', path,
-                '-dt',
+                '-vf',
+                '-hf',
             ])
-            self.state.on_image(path)
+            time.sleep(0.5)
+            print('on_image = {}'.format(self.app_state.on_image), file=sys.stderr)
+            self.app_state.on_image(path)
+            print(' => done', file=sys.stderr)
         except Exception as e:
             print('ERROR: {}'.format(e), file=sys.stderr)
             ui.show_error('ERROR: {}'.format(e))
             self.model.stop_preview()
             self.model.stop_recording()
+            self.stop()
             raise
 
     def start(self):
@@ -221,7 +229,9 @@ class RecordThread(RaspiStillThread):
         return self.app_state.interval
 
     def get_jpeg_path(self):
-        year = datetime.datetime.now().year
-        path = pathlib.Path(self.app_state.work_dir) / str(year)
+        now = datetime.datetime.now()
+        token = now.strftime('%Y-%m-%d_%H-%M-%S')
+        path = pathlib.Path(self.app_state.work_dir) / str(now.year)
         path.mkdir(exist_ok=True, parents=True)
-        return str(path / 'MBF_{}%d.jpeg'.format(year))
+        return str(path / 'MBF_{}.jpeg'.format(token))
+

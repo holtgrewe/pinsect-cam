@@ -5,6 +5,7 @@ import pathlib
 import tkinter as tk
 from tkinter import messagebox
 from PIL import ImageTk, Image
+import sys
 
 from . import model
 
@@ -101,10 +102,11 @@ class AppFrame(tk.Frame):
         #: Render and resize the image.
         self.image_loaded()
         self.master.bind('<Configure>', self.on_resize)
-        self.model.on_image = self.image_loaded
-        self.model.on_uiupdate = self.on_resize
+        self.model.state.on_image = self.image_changed
+        self.model.state.on_uiupdate = self.on_resize
 
     def image_loaded(self):
+        print('Updating image...', file=sys.stderr)
         self.state_updated()
         orig_width, orig_height = self.components['original'].size
         scale_width = (
@@ -173,6 +175,7 @@ class AppFrame(tk.Frame):
         self.state_updated()
 
     def image_changed(self, path):
+        print('Image changed...', file=sys.stderr)
         self.components['original'] = Image.open(path)
         self.image_loaded()
 
