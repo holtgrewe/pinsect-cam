@@ -1,9 +1,12 @@
 # -*- coding: utf-8 -*-
 
-from . import model
+import pathlib
+
 import tkinter as tk
 from tkinter import messagebox
 from PIL import ImageTk, Image
+
+from . import model
 
 
 def show_error(msg):
@@ -19,15 +22,19 @@ class _ComponentBuilder:
 
     def run(self):
         """Build components and return ``dict`` with the UI widgets."""
-        self.master.geometry('200x200')
+        self.master.geometry('400x400')
         self.master.rowconfigure(0, weight=10)
         self.master.rowconfigure(1, weight=1)
         self.master.columnconfigure(3, weight=1)
         result = {
-            'interval_var': tk.StringVar()
+            'interval_var': tk.StringVar(),
+            'original': Image.open(
+                str(pathlib.Path(__file__).parent / 'default.jpg')),
+            'image': None,
         }
         result.update({
-            'image_display': tk.Label(self.master, text='Placeholder', bg='red'),
+            'image_display': tk.Canvas(
+                self.master, width=100, height=100, background='bisque'),
             'preview_button': tk.Button(
                 self.master, text='Preview', command=self.frame.preview_clicked),
             'record_button': tk.Button(
@@ -41,12 +48,12 @@ class _ComponentBuilder:
             'interval_dec_button': tk.Button(
                 self.master, text='-', command=self.frame.interval_dec_clicked),
         })
-        result['interval_var'].set(str(self.model.state.interval))
-        result['interval_var'].trace('w', self.frame.interval_changed)
         result['image_display'].grid(
             row=0, column=0,
             columnspan=6, sticky=(tk.W + tk.E + tk.N + tk.S),
             padx=2, pady=2)
+        result['interval_var'].set(str(self.model.state.interval))
+        result['interval_var'].trace('w', self.frame.interval_changed)
         result['preview_button'].grid(
             row=1, column=0,
             sticky=(tk.W + tk.S),
@@ -86,10 +93,35 @@ class AppFrame(tk.Frame):
 
     def __init__(self, master, model, **kwargs):
         super().__init__(master, **kwargs)
+        self.master.wm_title('PInsect-Cam')
         #: The ``AppModel`` to use for the application.
         self.model = model
         #: A dict mapping names to UI components.
         self.components = _ComponentBuilder(model, master, self).run()
+        #: Render and resize the image.
+        self.image_loaded()
+        self.master.bind('<Configure>', self.on_resize)
+
+    def image_loaded(self):
+        orig_width, orig_height = self.components['original'].size
+        scale_width = (
+            self.components['image_display'].winfo_width() / orig_width)
+        scale_height = (
+            self.components['image_display'].winfo_height() / orig_height)
+        scale = min(scale_width, scale_height)
+        new_width = max(int(orig_width * scale), 1)
+        new_height = max(int(orig_height * scale), 1)
+        # print(orig_width, orig_height, self.components['image_display'].winfo_width(),
+        #       self.components['image_display'].winfo_height(), scale, new_width, new_height)
+        self.components['resized'] = self.components['original'].resize(
+                (new_width, new_height), Image.BILINEAR)
+        self.components['photo'] = ImageTk.PhotoImage(self.components['resized'])
+        self.components['image_display'].create_image(
+            (0, 0), anchor=tk.NW, image=self.components['photo'],
+            tags='all')
+
+    def on_resize(self, _event):
+        self.image_loaded()
 
     def state_updated(self):
         """Internal state updated; also update state of UI widgets."""
