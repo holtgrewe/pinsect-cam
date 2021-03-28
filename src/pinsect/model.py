@@ -180,6 +180,7 @@ class RaspiStillThread:
         with self.lock:
             self.stop = False
             self.running = False
+            self.app_state.on_uiupdate()
 
     def _should_stop_full(self):
         """Check whether we should stop because of low space."""
