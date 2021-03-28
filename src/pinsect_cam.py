@@ -36,6 +36,9 @@ def main(argv=None):
     parser.add_argument(
         '--work-dir',
         help='The work directory of the app')
+    parser.add_argument(
+        '--min-free', type=int,
+        help='Minimal free storage in target directory in MB'')
     args = parser.parse_args(argv)
     return run(args)
 

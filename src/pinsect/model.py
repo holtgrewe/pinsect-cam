@@ -4,10 +4,12 @@
 import datetime
 import json
 import pathlib
+import shutil
 import subprocess
 import sys
 import time
 import threading
+from tkinter import messagebox
 
 from . import ui
 
@@ -33,6 +35,8 @@ DEFAULT_CONFIG_ = (
     ('interval', 60),
     # Work directory.
     ('work_dir', str(pathlib.Path.home() / 'pinsect-cam')),
+    # Minimal free space.
+    ('min_free', 50)
 )
 DEFAULT_CONFIG = dict(DEFAULT_CONFIG_)
 
@@ -49,11 +53,14 @@ class AppConfig:
             self,
             interval=DEFAULT_CONFIG['interval'],
             work_dir=DEFAULT_CONFIG['work_dir'],
+            min_free=DEFAULT_CONFIG['min_free'],
             **kwargs):
         #: The interval (in seconds) between two configurations.
         self.interval = interval
         #: The working directory.
         self.work_dir = work_dir
+        #: Minimum amount of free space in MB.
+        self.min_free = min_free
     
     @classmethod
     def load(klass, path):
@@ -79,6 +86,7 @@ class AppState:
         self.state = IDLE
         self.interval = args.interval or config.interval
         self.work_dir = args.work_dir or config.work_dir
+        self.min_free = args.min_free or config.min_free
         self.on_image = lambda path: None
         self.on_uiupdate = lambda: None
 
@@ -164,11 +172,27 @@ class RaspiStillThread:
             self.running = True
             self.stop = False
         while not self.stop:
-            self.take_image()
-            time.sleep(self.get_interval())
+            if self._should_stop_full():
+                break
+            else:
+                self.take_image()
+                time.sleep(self.get_interval())
         with self.lock:
             self.stop = False
             self.running = False
+
+    def _should_stop_full(self):
+        """Check whether we should stop because of low space."""
+        free_bytes = shutil.disk_usage(str(pathlib.Path(path).parent)).free
+        if free_bytes < self.app_state.min_free * 1024 * 1024:
+            self.stop = True
+            messagebox.showerror(
+                title="Disk full",
+                message="Stop recording because disk is full",
+            )
+            return True
+        else:
+            return False
 
     def take_image(self):
         QUALITY = '90'
