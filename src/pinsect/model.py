@@ -183,6 +183,7 @@ class RaspiStillThread:
 
     def _should_stop_full(self):
         """Check whether we should stop because of low space."""
+        path = self.get_jpeg_path()
         free_bytes = shutil.disk_usage(str(pathlib.Path(path).parent)).free
         if free_bytes < self.app_state.min_free * 1024 * 1024:
             self.stop = True
